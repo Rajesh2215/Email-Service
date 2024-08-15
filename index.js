@@ -1,6 +1,6 @@
+const axios = require('axios');
 const express = require('express');
 const nodemailer = require('nodemailer');
-
 const app = express();
 app.use(express.json());
 require('dotenv').config()
@@ -16,8 +16,26 @@ const smtpTransport = nodemailer.createTransport({
     }
 });
 
-const sendEmailBackup = async() =>{
+const sendEmailBackup = async(emailData) =>{
     try {
+
+        const url = 'https://api.emailjs.com/api/v1.0/email/send';
+        const payload = {
+            service_id: process.env.EMAILJS_SERVICE_ID,    // Replace with your EmailJS service ID
+            template_id: process.env.EMAILJS_TEMPLATE_ID,  // Replace with your EmailJS template ID
+            user_id: process.env.EMAIJS_PUBLIC_KEY,          // Replace with your EmailJS user ID
+            template_params: emailData
+          };
+
+        const response = await axios.post(url, payload, {
+            headers: {
+              'Content-Type': 'application/json',
+              'origin': 'http://localhost'
+            }
+          });
+          if(response.data !== 'OK'){
+            throw Error('Failed to send ')
+          }
         console.log('Email sent using backup service')
         return
     } catch (error) {
@@ -35,7 +53,7 @@ const sendPrimaryEmail = async(emailData) => {
             subject: emailData.subject,
             text: emailData.text
         };
-
+        
         const info = await smtpTransport.sendMail(mailOptions);
         console.log('Email sent using primary SMTP service:', info);
         
@@ -43,7 +61,7 @@ const sendPrimaryEmail = async(emailData) => {
 
     } catch (error) {
 
-        console.log('sendPrimaryEmail error',error)
+        console.log('sendPrimaryEmail error',error.message)
         throw error;
 
     }
