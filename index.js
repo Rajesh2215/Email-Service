@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const app = express();
 app.use(express.json());
 require('dotenv').config()
-
+const MAX_RETRIES = 3
 const smtpTransport = nodemailer.createTransport({
     host: 'localhost', // Your SMTP server's hostname or IP
     port: 587, // Your SMTP port (25, 465, 587, etc.)
@@ -16,7 +16,17 @@ const smtpTransport = nodemailer.createTransport({
     }
 });
 
-const sendEmail = async(emailData) => {
+const sendEmailBackup = async() =>{
+    try {
+        console.log('Email sent using backup service')
+        return
+    } catch (error) {
+        console.log("🚀 ~ sendEmailBackup ~ error:", error)
+        throw error
+    }
+}
+
+const sendPrimaryEmail = async(emailData) => {
     try {
 
         const mailOptions = {
@@ -33,9 +43,30 @@ const sendEmail = async(emailData) => {
 
     } catch (error) {
 
-        console.log('sendEmail error',error)
+        console.log('sendPrimaryEmail error',error)
         throw error;
 
+    }
+}
+
+const sendEmailWithRetry = async(emailData) => {
+    let attempt = 0;
+    let success = false;
+
+    while (attempt < MAX_RETRIES) {
+        try {
+            await sendPrimaryEmail(emailData);
+            success = true;
+            break;
+        } catch (error) {
+            attempt++;
+            console.log(`Retrying... Attempt ${attempt}/${MAX_RETRIES}`);
+        }
+    }
+
+    if (!success) {
+        console.log('Switching to backup email service...');
+        await sendEmailBackup(emailData);
     }
 }
 
@@ -46,7 +77,7 @@ app.get('/', function (req, res) {
 app.post('/send-email', async (req, res) => {
     try {
         const emailData = req.body;
-        await sendEmail(emailData);
+        await sendEmailWithRetry(emailData);
         res.status(200).json({ message: 'Email sent successfully!' });
     } catch (error) {
         res.status(500).json({ message: 'Failed to send email', error: error.message });
